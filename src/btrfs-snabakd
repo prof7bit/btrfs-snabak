@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import signal
+import struct
+import socket
+import pwd
+import grp
+import json
+import traceback
+
+UNIX_SOCKET = "/var/run/btrfs-snabak.sock"
+UNIX_SOCKET_PERMS = 0o666
+
+
+class ClientConnection:
+    def __init__(self, connection):
+        self.conn = connection
+        creds = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize('3i'))
+        self.pid, self.uid, self.gid = struct.unpack('3i', creds)
+        self.username = pwd.getpwuid(self.uid).pw_name
+
+    def parse_command(self, command_json):
+        allowed_groups = 'adm'
+        allowed_users = ''
+
+        print("UID: {}, command: '{}'".format(self.uid, command_json))
+
+        argv = json.loads(command_json)
+
+        if self.is_allowed(allowed_users, allowed_groups):
+            self.reply(0, "OK")
+        else:
+            self.reply(1, "unauthorized access from user: {} with command: {}".format(self.uid, command_json))
+
+    def reply(self, exit_code, message):
+        r = json.dumps({"exit_code": exit_code, "message": message}) + chr(0)
+        self.conn.sendall(r.encode())
+
+    def is_allowed(self, users, groups):
+        users = users.split(',')
+        if self.username in users:
+            return True
+
+        groups = groups.split(',')
+        for group in groups:
+            members = grp.getgrnam(group).gr_mem
+            if self.username in members:
+                return True
+
+        return False
+
+    def handle(self):
+        try:
+            argv_json = ''
+            while True:
+                b = self.conn.recv(1).decode()
+                if b == '':  # disconnect
+                    if argv_json != '':
+                        self.parse_command(argv_json)
+                    break
+                elif b == chr(0):
+                    self.parse_command(argv_json)
+                    argv_json = ''
+                else:
+                    argv_json += b
+
+        except json.JSONDecodeError:
+            print('invalid json from client, dropping connection')
+
+        except:
+            traceback.print_exc()
+
+    def close(self):
+        self.conn.close()
+
+
+def terminate(signum, _frame):
+    print("\nreceived signal: {}".format(signum))
+    raise KeyboardInterrupt()
+
+
+def remove_socket():
+    try:
+        os.unlink(UNIX_SOCKET)
+    except OSError:
+        if os.path.exists(UNIX_SOCKET):
+            raise
+
+
+if __name__ == '__main__':
+    remove_socket()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(UNIX_SOCKET)
+    os.chmod(UNIX_SOCKET, UNIX_SOCKET_PERMS)
+    sock.listen(1)
+    signal.signal(signal.SIGTERM, terminate)
+    signal.signal(signal.SIGINT, terminate)
+    print('listening')
+    try:
+        while True:
+            conn, client = sock.accept()
+            c = ClientConnection(conn)
+            c.handle()
+            c.close()
+            sys.stdout.flush()
+            sys.stderr.flush()
+
+    except KeyboardInterrupt:
+        print('terminated')
+
+    finally:
+        sock.close()
+        remove_socket()
