@@ -44,4 +44,4 @@ if __name__ == '__main__':
         print('the socket is there but the daemon refuses to connect, did it crash?')
 
     except PermissionError:
-        print('permissions denied when trying to connect to socket "' + UNIX_SOCKET + '"')
+        print('permission denied when trying to connect to socket "' + UNIX_SOCKET + '"')
