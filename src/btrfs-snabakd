@@ -22,9 +22,9 @@ class ClientConnection:
         self.pid, self.uid, self.gid = struct.unpack('3i', creds)
         self.username = pwd.getpwuid(self.uid).pw_name
 
-    def cmd_snapshot(self, arg):
+    def cmd_snapshot(self, args):
         r = ''
-        for config in arg["config"]:
+        for config in args["config"]:
             r += f'snapshotting {config} FIXME: implement this!\n'
         self.reply(0, r)
 
@@ -42,14 +42,11 @@ class ClientConnection:
         self.conn.sendall(r.encode())
 
     def is_allowed(self, users, groups):
-        users = users.split(',')
-        if self.username in users:
+        if self.username in users.split(','):
             return True
 
-        groups = groups.split(',')
-        for group in groups:
-            members = grp.getgrnam(group).gr_mem
-            if self.username in members:
+        for group in groups.split(','):
+            if self.username in grp.getgrnam(group).gr_mem:
                 return True
 
         return False
