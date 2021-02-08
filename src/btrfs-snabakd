@@ -10,6 +10,7 @@ import grp
 import json
 import traceback
 
+
 UNIX_SOCKET = "/var/run/btrfs-snabak.sock"
 UNIX_SOCKET_PERMS = 0o666
 
@@ -21,18 +22,20 @@ class ClientConnection:
         self.pid, self.uid, self.gid = struct.unpack('3i', creds)
         self.username = pwd.getpwuid(self.uid).pw_name
 
+    def cmd_snapshot(self, arg):
+        r = ''
+        for config in arg["config"]:
+            r += f'snapshotting {config} FIXME: implement this!\n'
+        self.reply(0, r)
+
     def parse_command(self, command_json):
-        allowed_groups = 'adm'
-        allowed_users = ''
+        args = json.loads(command_json)
+        cmd = args["cmd"]
 
-        print(f"UID: {self.uid}, command: '{command_json}'")
-
-        argv = json.loads(command_json)
-
-        if self.is_allowed(allowed_users, allowed_groups):
-            self.reply(0, "OK")
+        if cmd == 'sn':
+            self.cmd_snapshot(args)
         else:
-            self.reply(1, f"unauthorized access from user: {self.uid} with command: {command_json}")
+            self.reply(1, f'unknown command: {cmd}')
 
     def reply(self, exit_code, message):
         r = json.dumps({'exit_code': exit_code, 'message': message}) + chr(0)
@@ -66,11 +69,9 @@ class ClientConnection:
                 else:
                     argv_json += b
 
-        except json.JSONDecodeError:
-            print('invalid json from client, dropping connection')
-
         except:
-            traceback.print_exc()
+            self.reply(1, "the daemon encountered the following exception:\n\n" +
+                       f"{traceback.format_exc()}\nthis is a bug, please report it.")
 
     def close(self):
         self.conn.close()
@@ -97,7 +98,7 @@ if __name__ == '__main__':
     sock.listen(1)
     signal.signal(signal.SIGTERM, terminate)
     signal.signal(signal.SIGINT, terminate)
-    print('listening')
+    print(f'listening on {UNIX_SOCKET}')
     try:
         while True:
             conn, client = sock.accept()
@@ -108,8 +109,9 @@ if __name__ == '__main__':
             sys.stderr.flush()
 
     except KeyboardInterrupt:
-        print('terminated')
+        pass
 
     finally:
         sock.close()
         remove_socket()
+        print('terminated')

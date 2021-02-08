@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 
 import socket
-import sys
 import json
+import argparse
 
 UNIX_SOCKET = "/var/run/btrfs-snabak.sock"
 
 
-if __name__ == '__main__':
+def call_daemon(command):
+    code = 0
+    message = ''
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(UNIX_SOCKET)
-        argv_ser = json.dumps(sys.argv) + chr(0)
-        sock.sendall(argv_ser.encode())
+        cmd_json = json.dumps(command) + chr(0)
+        sock.sendall(cmd_json.encode())
 
-        # wait for the answer and print it
+        # wait for the answer
         reply = ''
         while True:
             b = sock.recv(1).decode()
@@ -28,14 +30,12 @@ if __name__ == '__main__':
 
         try:
             r = json.loads(reply)
-            print(r["message"])
+            message = r["message"]
             code = r["exit_code"]
 
         except:
             print(f"could not parse daemon reply: '{reply}'")
             code = 255
-
-        sys.exit(code)
 
     except FileNotFoundError:
         print(f"could not find '{UNIX_SOCKET}', is the daemon not running?")
@@ -45,3 +45,46 @@ if __name__ == '__main__':
 
     except PermissionError:
         print(f"permission denied when trying to connect to socket '{UNIX_SOCKET}'")
+
+    print(message)
+    exit(code)
+
+
+def cmd_snapshot(args):
+    if len(args.config) > 0:
+        cmd = dict(cmd='sn', config=args.config)
+        call_daemon(cmd)
+
+    else:
+        print('Please specify at least one configuration name.')
+        print('Available configurations are:')
+        print('  FIXME: not implemented!')
+
+
+def cmd_backup(args):
+    print('backup not yet implemented')
+
+
+def cmd_list(args):
+    print('list not yet implemented')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(epilog="help for individual commands: btrfs-snabak <command> --help")
+    subparsers = parser.add_subparsers(dest='command', title='command')
+    subparsers.required = True
+
+    parser_sn = subparsers.add_parser('sn', aliases=['snapshot'], help='create snapshot')
+    parser_sn.add_argument('config', nargs='*', help='configuration name')
+    parser_sn.set_defaults(func=cmd_snapshot)
+
+    parser_ba = subparsers.add_parser('ba', aliases=['backup'], help='create backup')
+    parser_ba.add_argument('config', nargs='*', help='configuration name')
+    parser_ba.set_defaults(func=cmd_backup)
+
+    parser_li = subparsers.add_parser('li', aliases=['list'], help='list snapshots or backups')
+    parser_li.add_argument('config', nargs='*', help='configuration name')
+    parser_li.set_defaults(func=cmd_list)
+
+    arguments = parser.parse_args()
+    arguments.func(arguments)
