@@ -25,17 +25,17 @@ class ClientConnection:
         allowed_groups = 'adm'
         allowed_users = ''
 
-        print("UID: {}, command: '{}'".format(self.uid, command_json))
+        print(f"UID: {self.uid}, command: '{command_json}'")
 
         argv = json.loads(command_json)
 
         if self.is_allowed(allowed_users, allowed_groups):
             self.reply(0, "OK")
         else:
-            self.reply(1, "unauthorized access from user: {} with command: {}".format(self.uid, command_json))
+            self.reply(1, f"unauthorized access from user: {self.uid} with command: {command_json}")
 
     def reply(self, exit_code, message):
-        r = json.dumps({"exit_code": exit_code, "message": message}) + chr(0)
+        r = json.dumps({'exit_code': exit_code, 'message': message}) + chr(0)
         self.conn.sendall(r.encode())
 
     def is_allowed(self, users, groups):
@@ -77,7 +77,7 @@ class ClientConnection:
 
 
 def terminate(signum, _frame):
-    print("\nreceived signal: {}".format(signum))
+    print(f"\nreceived signal: {signum}")
     raise KeyboardInterrupt()
 
 

@@ -32,16 +32,16 @@ if __name__ == '__main__':
             code = r["exit_code"]
 
         except:
-            print("could not parse daemon reply: '{}'".format(reply))
+            print(f"could not parse daemon reply: '{reply}'")
             code = 255
 
         sys.exit(code)
 
     except FileNotFoundError:
-        print('could not find "' + UNIX_SOCKET + '", is the daemon not running?')
+        print(f"could not find '{UNIX_SOCKET}', is the daemon not running?")
 
     except ConnectionRefusedError:
-        print('the socket is there but the daemon refuses to connect, did it crash?')
+        print("the socket is there but the daemon refuses to connect, did it crash?")
 
     except PermissionError:
-        print('permission denied when trying to connect to socket "' + UNIX_SOCKET + '"')
+        print(f"permission denied when trying to connect to socket '{UNIX_SOCKET}'")
