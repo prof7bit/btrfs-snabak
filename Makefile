@@ -15,8 +15,9 @@ install:
 	install -m 755 src/btrfs-snabak /usr/bin/
 	install -m 644 system-files/btrfs-snabak-completion.sh /etc/bash_completion.d/
 	install -m 755 -d /etc/btrfs-snabak/configs
+	install -m 755 -d /usr/share/btrfs-snabak
 	rm -rf src/snabak_modules/__pycache__
-	cp -r  src/snabak_modules /usr/lib/python3/dist-packages/
+	cp -r  src/snabak_modules/ /usr/share/btrfs-snabak/
 	install -m 644 system-files/btrfs-snabak.service /lib/systemd/system/
 	systemctl daemon-reload
 	systemctl enable btrfs-snabak.service
@@ -30,6 +31,6 @@ uninstall:
 	rm -f /lib/systemd/system/btrfs-snabak.service
 	rm -f /usr/bin/btrfs-snabakd
 	rm -f /usr/bin/btrfs-snabak
-	rm -rf /usr/lib/python3/dist-packages/snabak_modules
+	rm -rf /usr/share/btrfs-snabak
 	rm -f /etc/bash_completion.d/btrfs-snabak-completion.sh
 	systemctl daemon-reload

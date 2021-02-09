@@ -4,6 +4,8 @@ import socket
 import json
 import argparse
 import sys
+
+sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
 
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import signal
 import struct
 import socket
@@ -8,6 +9,8 @@ import pwd
 import grp
 import json
 import traceback
+
+sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
 
 
