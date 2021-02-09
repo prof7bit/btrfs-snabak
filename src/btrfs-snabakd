@@ -14,6 +14,17 @@ sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
 
 
+def log(level, txt):
+    if level < LOG_4_WARNING:
+        f = sys.stderr
+    else:
+        f = sys.stdout
+    lines = txt.split('\n')
+    for line in lines:
+        print(f"<{level}>{line}", file=f)
+    f.flush()
+
+
 class ClientConnection:
     def __init__(self, connection):
         self.conn = connection
@@ -28,6 +39,7 @@ class ClientConnection:
         self.reply(ERR_OK, r)
 
     def parse_command(self, command_json):
+        log(LOG_7_DEBUG, f"received: {command_json}")
         args = json.loads(command_json)
         cmd = args["cmd"]
 
@@ -64,16 +76,17 @@ class ClientConnection:
                     args_json += b
 
         except:  # noqa
-            self.reply(ERR_UNKNOWN_EXCEPTION,
-                       "the daemon encountered the following exception:\n\n" +
-                       f"{traceback.format_exc()}\nthis is a bug, please report it.")
+            err = "the daemon encountered the following exception:\n\n" \
+                  f"{traceback.format_exc()}\nthis is a bug, please report it."
+            self.reply(ERR_UNKNOWN_EXCEPTION, err)
+            log(LOG_3_ERROR, err)
 
     def close(self):
         self.conn.close()
 
 
 def on_term_signal(signum, _frame):
-    print(f"\nreceived signal: {signum}")
+    log(LOG_7_DEBUG, f"received signal: {signum}")
     raise KeyboardInterrupt()
 
 
@@ -93,7 +106,7 @@ if __name__ == '__main__':
     sock.listen(1)
     signal.signal(signal.SIGTERM, on_term_signal)
     signal.signal(signal.SIGINT, on_term_signal)
-    print(f'listening on {UNIX_SOCKET}')
+    log(LOG_6_INFO, f'listening on {UNIX_SOCKET}')
     try:
         while True:
             conn, client = sock.accept()
@@ -107,4 +120,4 @@ if __name__ == '__main__':
     finally:
         sock.close()
         remove_socket()
-        print('terminated')
+        log(LOG_6_INFO, 'terminated')
