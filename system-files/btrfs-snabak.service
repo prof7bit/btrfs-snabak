@@ -3,7 +3,7 @@ Description=Btrfs snapshot and backup daemon
 
 [Service]
 Type=simple
-ExecStart=${PREFIX}/bin/btrfs-snabakd
+ExecStart=/usr/bin/btrfs-snabakd
 
 [Install]
 WantedBy=multi-user.target
