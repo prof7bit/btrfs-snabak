@@ -7,6 +7,7 @@ import sys
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
+from snabak_modules import config
 
 
 def terminate(code, message):
@@ -53,11 +54,12 @@ def cmd_snapshot(args):
         call_daemon(cmd)
 
     else:
+        confs = '\n'.join([ '  ' + c for c in config.list_configs()])
         terminate(
             ERR_USAGE,
             'Please specify at least one configuration name.\n' +
             'Available configurations are:\n' +
-            '  FIXME: not implemented!'
+            confs
         )
 
 
