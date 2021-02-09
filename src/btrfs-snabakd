@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import signal
 import struct
 import socket
@@ -64,7 +63,7 @@ class ClientConnection:
                 else:
                     args_json += b
 
-        except:
+        except:  # noqa
             self.reply(ERR_UNKNOWN_EXCEPTION,
                        "the daemon encountered the following exception:\n\n" +
                        f"{traceback.format_exc()}\nthis is a bug, please report it.")
@@ -101,8 +100,6 @@ if __name__ == '__main__':
             c = ClientConnection(conn)
             c.handle()
             c.close()
-            sys.stdout.flush()
-            sys.stderr.flush()
 
     except KeyboardInterrupt:
         pass
