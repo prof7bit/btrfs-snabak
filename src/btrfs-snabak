@@ -54,7 +54,7 @@ def cmd_snapshot(args):
         call_daemon(cmd)
 
     else:
-        confs = '\n'.join([ '  ' + c for c in config.list_configs()])
+        confs = '\n'.join(['  ' + c for c in config.list_configs()])
         terminate(
             ERR_USAGE,
             'Please specify at least one configuration name.\n' +
