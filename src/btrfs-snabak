@@ -3,13 +3,19 @@
 import socket
 import json
 import argparse
+import sys
+import traceback
+from snabak_modules.errors import *
 
 UNIX_SOCKET = "/var/run/btrfs-snabak.sock"
 
 
+def terminate(code, message):
+    print(message)
+    sys.exit(code)
+
+
 def call_daemon(command):
-    code = 0
-    message = ''
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(UNIX_SOCKET)
@@ -19,35 +25,31 @@ def call_daemon(command):
         # wait for the answer
         reply = ''
         while True:
-            b = sock.recv(1).decode()
-            if b == "":
+            buf = sock.recv(4096).decode()
+            reply += buf
+            if (buf == ""):
+                sock.close()
                 break
-            if b == chr(0):
-                break
-            reply += b
-
-        sock.close()
 
         try:
             r = json.loads(reply)
-            message = r["message"]
-            code = r["exit_code"]
+            terminate(r["exit_code"], r["message"])
+
+        except SystemExit:
+            pass # this is excepted when we just called system.exit
 
         except:
-            print(f"could not parse daemon reply: '{reply}'")
-            code = 255
+            traceback.print_exc()
+            terminate(ERR_DAEMON, f"could not parse daemon reply: '{reply}'")
 
     except FileNotFoundError:
-        print(f"could not find '{UNIX_SOCKET}', is the daemon not running?")
+        terminate(ERR_DAEMON, f"could not find '{UNIX_SOCKET}', is the daemon not running?")
 
     except ConnectionRefusedError:
-        print("the socket is there but the daemon refuses to connect, did it crash?")
+        terminate(ERR_DAEMON, "the socket is there but the daemon refuses to connect, did it crash?")
 
     except PermissionError:
-        print(f"permission denied when trying to connect to socket '{UNIX_SOCKET}'")
-
-    print(message)
-    exit(code)
+        terminate(ERR_DAEMON, f"permission denied when trying to connect to socket '{UNIX_SOCKET}'")
 
 
 def cmd_snapshot(args):
@@ -56,17 +58,20 @@ def cmd_snapshot(args):
         call_daemon(cmd)
 
     else:
-        print('Please specify at least one configuration name.')
-        print('Available configurations are:')
-        print('  FIXME: not implemented!')
+        terminate(
+            ERR_USAGE,
+            'Please specify at least one configuration name.\n' +
+            'Available configurations are:\n' +
+            '  FIXME: not implemented!'
+        )
 
 
-def cmd_backup(args):
-    print('backup not yet implemented')
+def cmd_backup(_args):
+    terminate(ERR_NOT_IMPLEMENTED, 'backup not yet implemented')
 
 
-def cmd_list(args):
-    print('list not yet implemented')
+def cmd_list(_args):
+    terminate(ERR_NOT_IMPLEMENTED, 'list not yet implemented')
 
 
 if __name__ == '__main__':
