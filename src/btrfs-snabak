@@ -4,9 +4,7 @@ import socket
 import json
 import argparse
 import sys
-from snabak_modules.errors import *
-
-UNIX_SOCKET = "/var/run/btrfs-snabak.sock"
+from snabak_modules.constants import *
 
 
 def terminate(code, message):

@@ -8,10 +8,7 @@ import pwd
 import grp
 import json
 import traceback
-from snabak_modules.errors import *
-
-UNIX_SOCKET = "/var/run/btrfs-snabak.sock"
-UNIX_SOCKET_PERMS = 0o666
+from snabak_modules.constants import *
 
 
 class ClientConnection:
