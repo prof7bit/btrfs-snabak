@@ -19,8 +19,7 @@ def call_daemon(command):
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(UNIX_SOCKET)
-        cmd_json = json.dumps(command) + chr(0)
-        sock.sendall(cmd_json.encode())
+        sock.sendall((json.dumps(command) + chr(0)).encode())
 
         # wait for the answer
         reply = ''
@@ -32,8 +31,8 @@ def call_daemon(command):
                 break
 
         try:
-            r = json.loads(reply)
-            terminate(r["exit_code"], r["message"])
+            rep = json.loads(reply)
+            terminate(rep["exit_code"], rep["message"])
 
         except (json.JSONDecodeError, KeyError):
             terminate(ERR_DAEMON, f"could not parse daemon reply: '{reply}'")
@@ -50,8 +49,7 @@ def call_daemon(command):
 
 def cmd_snapshot(args):
     if len(args.config) > 0:
-        cmd = dict(cmd='sn', config=args.config)
-        call_daemon(cmd)
+        call_daemon(dict(cmd="sn", config=args.config))
 
     else:
         confs = '\n'.join(['  ' + c for c in config.list_configs()])
