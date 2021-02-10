@@ -20,3 +20,5 @@ LOG_6_INFO                  = 6
 LOG_7_DEBUG                 = 7
 
 CONF_DIR                    = '/etc/btrfs-snabak/configs'
+
+NULL_BYTE                   = b'\x00'

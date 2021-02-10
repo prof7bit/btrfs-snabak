@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import socket
-import json
 import argparse
 import sys
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
+from snabak_modules.commands import *
 from snabak_modules import config
 
 
@@ -19,7 +19,7 @@ def call_daemon(command):
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(UNIX_SOCKET)
-        sock.sendall((json.dumps(command) + chr(0)).encode())
+        sock.sendall(command.serialize() + NULL_BYTE)
 
         # wait for the answer
         reply = ''
@@ -49,7 +49,7 @@ def call_daemon(command):
 
 def cmd_snapshot(args):
     if len(args.config) > 0:
-        call_daemon(dict(cmd="sn", config=args.config))
+        call_daemon(Command("sn", args.config))
 
     else:
         confs = '\n'.join(['  ' + c for c in config.list_configs()])

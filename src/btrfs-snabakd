@@ -7,11 +7,11 @@ import struct
 import socket
 import pwd
 import grp
-import json
 import traceback
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
+from snabak_modules.commands import *
 
 
 def log(level, txt):
@@ -32,25 +32,26 @@ class ClientConnection:
         self.pid, self.uid, self.gid = struct.unpack('3i', creds)
         self.username = pwd.getpwuid(self.uid).pw_name
 
-    def cmd_snapshot(self, args: dict):
+    def cmd_snapshot(self, cmd: Command):
         r = ''
-        for config in args["config"]:
+        for config in cmd.config:
             r += f'snapshotting {config} FIXME: implement this!\n'
         self.reply(ERR_OK, r)
 
-    def cmd_backup(self, args: dict):
+    def cmd_backup(self, cmd: Command):
         r = ''
-        for config in args["config"]:
+        for config in cmd.config:
             r += f'backupping {config} FIXME: implement this!\n'
         self.reply(ERR_OK, r)
 
     def parse_command(self, command_json):
         log(LOG_7_DEBUG, f"received: {command_json}")
-        jso = json.loads(command_json)
-        {
+        cmd = Command.from_json(command_json)
+        mapping = {
             "sn": self.cmd_snapshot,
             "ba": self.cmd_backup
-        }[jso["cmd"]](jso)  # noqa
+        }
+        mapping[cmd.cmd](cmd)
 
     def reply(self, exit_code, message):
         r = json.dumps({'exit_code': exit_code, 'message': message})
