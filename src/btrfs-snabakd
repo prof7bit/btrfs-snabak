@@ -32,21 +32,25 @@ class ClientConnection:
         self.pid, self.uid, self.gid = struct.unpack('3i', creds)
         self.username = pwd.getpwuid(self.uid).pw_name
 
-    def cmd_snapshot(self, args):
+    def cmd_snapshot(self, args: dict):
         r = ''
         for config in args["config"]:
             r += f'snapshotting {config} FIXME: implement this!\n'
         self.reply(ERR_OK, r)
 
+    def cmd_backup(self, args: dict):
+        r = ''
+        for config in args["config"]:
+            r += f'backupping {config} FIXME: implement this!\n'
+        self.reply(ERR_OK, r)
+
     def parse_command(self, command_json):
         log(LOG_7_DEBUG, f"received: {command_json}")
-        args = json.loads(command_json)
-        cmd = args["cmd"]
-
-        if cmd == 'sn':
-            self.cmd_snapshot(args)
-        else:
-            self.reply(ERR_UNKNOWN_COMMAND, f'unknown command: {cmd}')
+        jso = json.loads(command_json)
+        {
+            "sn": self.cmd_snapshot,
+            "ba": self.cmd_backup
+        }[jso["cmd"]](jso)  # noqa
 
     def reply(self, exit_code, message):
         r = json.dumps({'exit_code': exit_code, 'message': message})
