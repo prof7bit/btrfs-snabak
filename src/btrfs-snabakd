@@ -30,6 +30,10 @@ class ConfigurationError(BaseException):
     pass
 
 
+class UsageError(BaseException):
+    pass
+
+
 class ClientConnection:
     def __init__(self, connection):
         self.conn = connection
@@ -41,35 +45,70 @@ class ClientConnection:
         r = ''
         try:
             for config_name in cmd.config:
-                conf = Config(config_name)
-                if not conf.loaded:
-                    r += f'configuration "{conf.filename}" does not exist or could not be loaded\n'
+                config = Config(config_name)
+                if not config.loaded:
+                    r += f'configuration "{config.filename}" does not exist or could not be loaded\n'
                     raise ConfigurationError
 
-                self.check_permissions(conf)  # raises PermissionError
+                self.check_permissions(config)  # raises PermissionError
 
-                vol = conf.main.volume
-                if not os.path.exists(vol):
-                    r += f'configured volume path not found: "{vol}"\n'
+                volume = config.main.volume
+                if not os.path.exists(volume):
+                    r += f'configured volume path not found: "{volume}"\n'
                     raise ConfigurationError
 
-                snapdir = os.path.join(conf.main.snapshots, conf.name)
-                if not os.path.exists(snapdir):
-                    r += f'creating directory "{snapdir}"\n'
-                    os.makedirs(snapdir, 0o755, True)
+                snapdir_base = os.path.join(config.main.snapshots, config.name)
+                if not os.path.exists(snapdir_base):
+                    r += f'creating directory "{snapdir_base}"\n'
+                    os.makedirs(snapdir_base, 0o755, True)
 
-                _, next_number = self.list_existing_snapshots(snapdir)
+                _, next_number = self.list_existing_snapshots(snapdir_base)
                 r += f'snapshotting "{config_name}", snapshot number {next_number}'
-                dir = os.path.join(snapdir, str(next_number))
-                snapshot_path = os.path.join(dir, 'snapshot')
-                os.mkdir(dir)
-                os.system(f'btrfs subvolume snapshot -r "{vol}" "{snapshot_path}"')
-
+                snapdir = os.path.join(snapdir_base, str(next_number))
+                snapshot_fullpath = os.path.join(snapdir, 'snapshot')
+                os.mkdir(snapdir)
+                os.system(f'btrfs subvolume snapshot -r "{volume}" "{snapshot_fullpath}"')
 
             self.reply(ERR_OK, r)
 
         except ConfigurationError:
             self.reply(ERR_CONFIGURATION, r)
+
+        except PermissionError:
+            self.reply(ERR_PERMISSION, r)
+
+    def cmd_delete(self, cmd: Command):
+        r = ''
+        try:
+            config = Config(cmd.config)
+            if not config.loaded:
+                r += f'configuration "{config.name}" can not be found or loaded'
+                raise ConfigurationError
+
+            self.check_permissions(config)  # raise PermissionError
+
+            snapdir_base = os.path.join(config.main.snapshots, config.name)
+            if not os.path.exists(snapdir_base):
+                r += f'snapshot directory does not exist: "{snapdir_base}"\n'
+                raise ConfigurationError
+
+            snapdir = os.path.join(snapdir_base, cmd.number)
+            if not os.path.exists(snapdir):
+                r += f'snapshot does not exist: "{snapdir}"\n'
+                raise UsageError
+
+            snapshot_fullpath = os.path.join(snapdir, 'snapshot')
+            r += f'deleting snapshot "{snapdir}"\n'
+            os.system(f'btrfs subvolume delete "{snapshot_fullpath}"')
+            os.system(f'rm -rf {snapdir}')
+
+            self.reply(ERR_OK, r)
+
+        except ConfigurationError:
+            self.reply(ERR_CONFIGURATION, r)
+
+        except UsageError:
+            self.reply(ERR_USAGE, r)
 
         except PermissionError:
             self.reply(ERR_PERMISSION, r)
@@ -85,7 +124,8 @@ class ClientConnection:
         cmd = Command.from_json(command_json)
         mapping = {
             "sn": self.cmd_snapshot,
-            "ba": self.cmd_backup
+            "ba": self.cmd_backup,
+            "de": self.cmd_delete
         }
         mapping[cmd.cmd](cmd)  # noqa
 
@@ -93,7 +133,7 @@ class ClientConnection:
         r = json.dumps({'exit_code': exit_code, 'message': message.strip()})
         self.conn.sendall(r.encode())
 
-    def list_existing_snapshots(self, path):
+    def list_existing_snapshots(self, path):  # noqa
         _, dirnames, _ = next(os.walk(path))
         numbers = []
         highest = 0
@@ -106,11 +146,6 @@ class ClientConnection:
             except ValueError:
                 pass
         return numbers, highest + 1
-
-    def delete_snapshot(self, path):
-        sn = os.path.join(path, 'snapshot')
-        os.system(f'btrfs subvolume delete "{sn}"')
-        os.system(f'rm -rf {path}')
 
     def check_permissions(self, config):
         if self.uid == 0:

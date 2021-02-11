@@ -69,6 +69,11 @@ def cmd_list(_args):
     terminate(ERR_NOT_IMPLEMENTED, 'list not yet implemented')
 
 
+def cmd_delete(args):
+    call_daemon(Command("de", args.config, args.number))
+    terminate(ERR_NOT_IMPLEMENTED, 'delete not yet implemented')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(epilog="help for individual commands: btrfs-snabak <command> --help")
     subparsers = parser.add_subparsers(dest='command', title='command')
@@ -85,6 +90,11 @@ if __name__ == '__main__':
     parser_li = subparsers.add_parser('li', aliases=['list'], help='list snapshots or backups')
     parser_li.add_argument('config', nargs='*', help='configuration name')
     parser_li.set_defaults(func=cmd_list)
+
+    parser_de = subparsers.add_parser('de', aliases=['delete'], help='delete a snapshot')
+    parser_de.add_argument('config', help='configuration name')
+    parser_de.add_argument('number', help='snapshot number to delete')
+    parser_de.set_defaults(func=cmd_delete)
 
     arguments = parser.parse_args()
     arguments.func(arguments)
