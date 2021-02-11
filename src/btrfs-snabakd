@@ -53,12 +53,18 @@ class ClientConnection:
                     r += f'configured volume path not found: "{vol}"\n'
                     raise ConfigurationError
 
-                snapdir = conf.main.snapshots
+                snapdir = os.path.join(conf.main.snapshots, conf.name)
                 if not os.path.exists(snapdir):
-                    r += f'configured snapshot directory not found: "{snapdir}"\n'
-                    raise ConfigurationError
+                    r += f'creating directory "{snapdir}"\n'
+                    os.makedirs(snapdir, 0o755, True)
 
-                r += f'snapshotting "{config_name}" FIXME: not implemented yet'
+                _, next_number = self.list_existing_snapshots(snapdir)
+                r += f'snapshotting "{config_name}", snapshot number {next_number}'
+                dir = os.path.join(snapdir, str(next_number))
+                snapshot_path = os.path.join(dir, 'snapshot')
+                os.mkdir(dir)
+                os.system(f'btrfs subvolume snapshot -r "{vol}" "{snapshot_path}"')
+
 
             self.reply(ERR_OK, r)
 
@@ -86,6 +92,25 @@ class ClientConnection:
     def reply(self, exit_code, message):
         r = json.dumps({'exit_code': exit_code, 'message': message.strip()})
         self.conn.sendall(r.encode())
+
+    def list_existing_snapshots(self, path):
+        _, dirnames, _ = next(os.walk(path))
+        numbers = []
+        highest = 0
+        for n in dirnames:
+            try:
+                num = int(n)
+                numbers.append(num)
+                if num > highest:
+                    highest = num
+            except ValueError:
+                pass
+        return numbers, highest + 1
+
+    def delete_snapshot(self, path):
+        sn = os.path.join(path, 'snapshot')
+        os.system(f'btrfs subvolume delete "{sn}"')
+        os.system(f'rm -rf {path}')
 
     def check_permissions(self, config):
         if self.uid == 0:
