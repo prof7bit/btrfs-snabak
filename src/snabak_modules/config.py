@@ -1,12 +1,18 @@
-from os import walk
+import os
 from .constants import *
-from configparser import ConfigParser, NoOptionError, NoSectionError
+from configparser import ConfigParser, Error
 
 
 def list_configs():
     """returns a list of existing configurations"""
-    _, _, filenames = next(walk(CONF_DIR))
+    _, _, filenames = next(os.walk(CONF_DIR))
     return filenames
+
+
+def list_snapshots(config):
+    snapdir = (os.path.join(config.main.snapshots, config.name))
+    _, dirs, _ = next(os.walk(snapdir))
+    return dirs
 
 
 class Config:
@@ -16,7 +22,10 @@ class Config:
         self.name = name
         self.filename = f"{CONF_DIR}/{name}"
         self.cp = ConfigParser()
-        self.loaded = len(self.cp.read(self.filename)) == 1
+        try:
+            self.loaded = len(self.cp.read(self.filename)) == 1
+        except Error:
+            pass
 
     class Section:
         """Helper class for getattr trick to use nested object notation"""
@@ -50,7 +59,7 @@ class Config:
         def __getattr__(self, item):
             try:
                 return Config.Section.Item(self.cp.get(self.sect, item))
-            except (NoOptionError, NoSectionError):
+            except Error:
                 return Config.Section.Item('')
 
     def __getattr__(self, item):

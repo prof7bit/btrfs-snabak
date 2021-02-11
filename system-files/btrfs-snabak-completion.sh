@@ -1,22 +1,11 @@
 _btrfs-snabak()
 {
-    local cur prev commands confdir configs
-    COMPREPLY=()
+    local cur prev prev2
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-
-    commands="snapshot backup list"
-    confdir=/etc/btrfs-snabak/configs
-    configs=$(for file in "$confdir"/*; do echo "${file##*/}" ; done )
-
-    # previous word was a command or a config (may enter multiple configs)
-    if [[ "$commands $configs" =~ $prev ]]; then
-      COMPREPLY=($(compgen -W "$configs" -- "${cur}"))
-
-    elif [[ "btrfs-snabak" == "$prev" ]]; then
-      COMPREPLY=($(compgen -W "$commands" -- "${cur}"))
-
-    fi
+    prev2="${COMP_WORDS[COMP_CWORD-2]}"
+    words=$(btrfs-snabak compassist "$prev" "$prev2")
+    COMPREPLY=( $(compgen -W "$words" -- "$cur") )
     return 0
 }
 complete -F _btrfs-snabak btrfs-snabak

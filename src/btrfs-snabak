@@ -74,6 +74,30 @@ def cmd_delete(args):
     terminate(ERR_NOT_IMPLEMENTED, 'delete not yet implemented')
 
 
+def completion_assist(args):
+    """
+    Output the next possible completion words on the command line,
+    given the previous two words. This function is invoked ONLY by the
+    bash completion script that ships with this tool, it helps auto-
+    completing commands, existing configurations and snapshot numbers.
+    """
+    commands = ['snapshot', 'backup', 'list', 'delete']
+    commands2 = ['sn', 'ba', 'li', 'de']
+    if args.prev == 'btrfs-snabak':
+        print(' '.join(commands))
+
+    elif args.prev2 in ['delete', 'de'] and args.prev in config.list_configs():
+        try:
+            conf = config.Config(args.prev)
+            dirs = config.list_snapshots(conf)
+            print(' '.join(dirs))
+        except Exception:  # noqa
+            print('invalid')
+
+    elif args.prev in commands + commands2 + config.list_configs():
+        print(' '.join(config.list_configs()))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(epilog="help for individual commands: btrfs-snabak <command> --help")
     subparsers = parser.add_subparsers(dest='command', title='command')
@@ -95,6 +119,12 @@ if __name__ == '__main__':
     parser_de.add_argument('config', help='configuration name')
     parser_de.add_argument('number', help='snapshot number to delete')
     parser_de.set_defaults(func=cmd_delete)
+
+    # this command is only used to assist the bash completion script
+    parser_ca = subparsers.add_parser('compassist', help='only used by bash completion')
+    parser_ca.add_argument('prev', help='previous word on the command line')
+    parser_ca.add_argument('prev2', nargs='?', help='2nd previous word on the command line')
+    parser_ca.set_defaults(func=completion_assist)
 
     arguments = parser.parse_args()
     arguments.func(arguments)
