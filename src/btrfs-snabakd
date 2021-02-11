@@ -10,6 +10,7 @@ import grp
 import traceback
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
+from snabak_modules.errors import *
 from snabak_modules.constants import *
 from snabak_modules.commands import *
 from snabak_modules.config import Config
@@ -26,12 +27,9 @@ def log(level, txt):
     f.flush()
 
 
-class ConfigurationError(BaseException):
-    pass
-
-
-class UsageError(BaseException):
-    pass
+def check_path_or_raise(path, message='path not found: "{}"', error=PathNotFound):
+    if not os.path.exists(path):
+        raise error(message.format(path))
 
 
 class ClientConnection:
@@ -46,72 +44,72 @@ class ClientConnection:
         try:
             for config_name in cmd.config:
                 config = Config(config_name)
+                r += f'create a new snapshot for configuration "{config.name}"\n'
                 if not config.loaded:
-                    r += f'configuration "{config.filename}" does not exist or could not be loaded\n'
-                    raise ConfigurationError
+                    raise ConfigurationError(f'configuration "{config.name}" can not be found or loaded')
 
-                self.check_permissions(config)  # raises PermissionError
+                self.check_allowed_or_raise(config)  # raise PermissionError
 
                 volume = config.main.volume
-                if not os.path.exists(volume):
-                    r += f'configured volume path not found: "{volume}"\n'
-                    raise ConfigurationError
+                check_path_or_raise(volume, 'volume not found: "{}"')  # raise PathNotFound
+
+                check_path_or_raise(config.main.snapshots, 'snapshot directory not found: "{}"')
 
                 snapdir_base = os.path.join(config.main.snapshots, config.name)
                 if not os.path.exists(snapdir_base):
-                    r += f'creating directory "{snapdir_base}"\n'
-                    os.makedirs(snapdir_base, 0o755, True)
+                    r += f'creating new empty snapshot directory: "{snapdir_base}"\n'
+                    os.mkdir(snapdir_base)
 
                 _, next_number = self.list_existing_snapshots(snapdir_base)
-                r += f'snapshotting "{config_name}", snapshot number {next_number}'
+                r += f'snapshotting "{config_name}", snapshot number {next_number}\n'
                 snapdir = os.path.join(snapdir_base, str(next_number))
                 snapshot_fullpath = os.path.join(snapdir, 'snapshot')
                 os.mkdir(snapdir)
                 os.system(f'btrfs subvolume snapshot -r "{volume}" "{snapshot_fullpath}"')
+                r += 'ok\n'
 
             self.reply(ERR_OK, r)
 
-        except ConfigurationError:
-            self.reply(ERR_CONFIGURATION, r)
+        except ConfigurationError as e:
+            self.reply(ERR_CONFIGURATION, r + str(e))
 
-        except PermissionError:
-            self.reply(ERR_PERMISSION, r)
+        except PathNotFound as e:
+            self.reply(ERR_CONFIGURATION, r + str(e))
+
+        except PermissionError as e:
+            self.reply(ERR_PERMISSION, r + str(e))
 
     def cmd_delete(self, cmd: Command):
-        r = ''
+        r = f'delete snapshot {cmd.number} from configuration "{cmd.config}"\n'
         try:
             config = Config(cmd.config)
             if not config.loaded:
-                r += f'configuration "{config.name}" can not be found or loaded'
-                raise ConfigurationError
+                raise ConfigurationError(f'configuration "{config.name}" can not be found or loaded')
 
-            self.check_permissions(config)  # raise PermissionError
+            self.check_allowed_or_raise(config)  # raise PermissionError
 
             snapdir_base = os.path.join(config.main.snapshots, config.name)
-            if not os.path.exists(snapdir_base):
-                r += f'snapshot directory does not exist: "{snapdir_base}"\n'
-                raise ConfigurationError
+            check_path_or_raise(snapdir_base, 'snapshot directory not found: "{}"')  # raise PathNotFound
 
             snapdir = os.path.join(snapdir_base, cmd.number)
-            if not os.path.exists(snapdir):
-                r += f'snapshot does not exist: "{snapdir}"\n'
-                raise UsageError
+            check_path_or_raise(snapdir, 'snapshot not found: "{}"')
 
             snapshot_fullpath = os.path.join(snapdir, 'snapshot')
-            r += f'deleting snapshot "{snapdir}"\n'
+            r += f'deleting snapshot "{snapshot_fullpath}"\n'
             os.system(f'btrfs subvolume delete "{snapshot_fullpath}"')
+            r += f'deleting directory "{snapdir}"\n'
             os.system(f'rm -rf {snapdir}')
 
             self.reply(ERR_OK, r)
 
-        except ConfigurationError:
-            self.reply(ERR_CONFIGURATION, r)
+        except ConfigurationError as e:
+            self.reply(ERR_CONFIGURATION, r + str(e))
 
-        except UsageError:
-            self.reply(ERR_USAGE, r)
+        except PathNotFound as e:
+            self.reply(ERR_USAGE, r + str(e))
 
-        except PermissionError:
-            self.reply(ERR_PERMISSION, r)
+        except PermissionError as e:
+            self.reply(ERR_PERMISSION, r + str(e))
 
     def cmd_backup(self, cmd: Command):
         r = ''
@@ -147,7 +145,7 @@ class ClientConnection:
                 pass
         return numbers, highest + 1
 
-    def check_permissions(self, config):
+    def check_allowed_or_raise(self, config):
         if self.uid == 0:
             return
 
@@ -159,7 +157,7 @@ class ClientConnection:
                 return
 
         log(LOG_4_WARNING, f'permission denied for user "{self.username}" to use config "{config.name}"')
-        raise PermissionError
+        raise PermissionError(f'permission denied for user "{self.username}"')
 
     def handle(self):
         try:
