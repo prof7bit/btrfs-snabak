@@ -16,7 +16,7 @@ class Config:
         self.name = name
         self.filename = f"{CONF_DIR}/{name}"
         self.cp = ConfigParser()
-        self.cp.read(self.filename)
+        self.loaded = len(self.cp.read(self.filename)) == 1
 
     class Section:
         """Helper class for getattr trick to use nested object notation"""

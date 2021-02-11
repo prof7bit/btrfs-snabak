@@ -13,4 +13,3 @@ class Command:
 
     def serialize(self):
         return json.dumps(self.__dict__).encode()
-

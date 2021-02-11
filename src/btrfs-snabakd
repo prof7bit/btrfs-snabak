@@ -12,6 +12,7 @@ import traceback
 sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
 from snabak_modules.commands import *
+from snabak_modules.config import Config
 
 
 def log(level, txt):
@@ -25,6 +26,10 @@ def log(level, txt):
     f.flush()
 
 
+class ConfigurationError(BaseException):
+    pass
+
+
 class ClientConnection:
     def __init__(self, connection):
         self.conn = connection
@@ -34,9 +39,34 @@ class ClientConnection:
 
     def cmd_snapshot(self, cmd: Command):
         r = ''
-        for config in cmd.config:
-            r += f'snapshotting {config} FIXME: implement this!\n'
-        self.reply(ERR_OK, r)
+        try:
+            for config_name in cmd.config:
+                conf = Config(config_name)
+                if not conf.loaded:
+                    r += f'configuration "{conf.filename}" does not exist or could not be loaded\n'
+                    raise ConfigurationError
+
+                self.check_permissions(conf)  # raises PermissionError
+
+                vol = conf.main.volume
+                if not os.path.exists(vol):
+                    r += f'configured volume path not found: "{vol}"\n'
+                    raise ConfigurationError
+
+                snapdir = conf.main.snapshots
+                if not os.path.exists(snapdir):
+                    r += f'configured snapshot directory not found: "{snapdir}"\n'
+                    raise ConfigurationError
+
+                r += f'snapshotting "{config_name}" FIXME: not implemented yet'
+
+            self.reply(ERR_OK, r)
+
+        except ConfigurationError:
+            self.reply(ERR_CONFIGURATION, r)
+
+        except PermissionError:
+            self.reply(ERR_PERMISSION, r)
 
     def cmd_backup(self, cmd: Command):
         r = ''
@@ -45,27 +75,31 @@ class ClientConnection:
         self.reply(ERR_OK, r)
 
     def parse_command(self, command_json):
-        log(LOG_7_DEBUG, f"received: {command_json}")
+        log(LOG_7_DEBUG, f'received: {command_json} from user "{self.username}"')
         cmd = Command.from_json(command_json)
         mapping = {
             "sn": self.cmd_snapshot,
             "ba": self.cmd_backup
         }
-        mapping[cmd.cmd](cmd)
+        mapping[cmd.cmd](cmd)  # noqa
 
     def reply(self, exit_code, message):
-        r = json.dumps({'exit_code': exit_code, 'message': message})
+        r = json.dumps({'exit_code': exit_code, 'message': message.strip()})
         self.conn.sendall(r.encode())
 
-    def is_allowed(self, users, groups):
-        if self.username in users.split(','):
-            return True
+    def check_permissions(self, config):
+        if self.uid == 0:
+            return
 
-        for group in groups.split(','):
+        if self.username in config.main.allowed_users.as_list():
+            return
+
+        for group in config.main.allowed_groups.as_list():
             if self.username in grp.getgrnam(group).gr_mem:
-                return True
+                return
 
-        return False
+        log(LOG_4_WARNING, f'permission denied for user "{self.username}" to use config "{config.name}"')
+        raise PermissionError
 
     def handle(self):
         try:
