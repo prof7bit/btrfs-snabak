@@ -44,16 +44,14 @@ class ClientConnection:
     def execute(self, *args):
         proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         while True:
-            self.reply(ERR_OK, proc.stdout.readline().decode())
+            while True:
+                out = proc.stdout.readline().decode()
+                if out:
+                    self.reply(ERR_OK, out)
+                else:
+                    break
             code = proc.poll()
             if code is not None:
-                while True:
-                    # read the remainder of the output (if any)
-                    out = proc.stdout.readline().decode()
-                    if out:
-                        self.reply(ERR_OK, out)
-                    else:
-                        break
                 break
         if code != 0:
             raise ExternalToolsError(f"{args[0]} exited with code {code}")
