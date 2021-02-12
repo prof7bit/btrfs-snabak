@@ -8,6 +8,7 @@ import socket
 import pwd
 import grp
 import traceback
+import json
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.exceptions import *
