@@ -8,3 +8,7 @@ class UsageError(BaseException):
 
 class PathNotFound(BaseException):
     pass
+
+
+class ExternalToolsError(BaseException):
+    pass

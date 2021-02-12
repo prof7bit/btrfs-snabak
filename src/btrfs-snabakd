@@ -9,6 +9,7 @@ import pwd
 import grp
 import traceback
 import json
+import subprocess
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.exceptions import *
@@ -40,6 +41,18 @@ class ClientConnection:
         self.pid, self.uid, self.gid = struct.unpack('3i', creds)
         self.username = pwd.getpwuid(self.uid).pw_name
 
+    def execute(self, *args):
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        while True:
+            out = proc.stdout.readline().decode()
+            code = proc.poll()
+            if out:
+                self.reply(ERR_OK, out)
+            if code is not None:
+                break # FIXME: might be missing some output if breaking immediately
+        if code != 0:
+            raise ExternalToolsError(f"{args[0]} exited with code {code}")
+
     def cmd_snapshot(self, cmd: Command):
         try:
             for config_name in cmd.config:
@@ -65,8 +78,11 @@ class ClientConnection:
                 snapdir = os.path.join(snapdir_base, str(next_number))
                 snapshot_fullpath = os.path.join(snapdir, 'snapshot')
                 os.mkdir(snapdir)
-                os.system(f'btrfs subvolume snapshot -r "{volume}" "{snapshot_fullpath}"')
+                self.execute('/bin/btrfs', 'subvolume', 'snapshot', volume, snapshot_fullpath)
                 self.reply(ERR_OK, f'snapshot created: "{snapshot_fullpath}"')
+
+        except ExternalToolsError as e:
+            self.reply(ERR_UNKNOWN_EXCEPTION, str(e))
 
         except ConfigurationError as e:
             self.reply(ERR_CONFIGURATION, str(e))
@@ -78,7 +94,7 @@ class ClientConnection:
             self.reply(ERR_PERMISSION, str(e))
 
     def cmd_delete(self, cmd: Command):
-        self.reply(ERR_OK, f'delete snapshot {cmd.number} from configuration "{cmd.config}"')
+        self.reply(ERR_OK, f'Delete snapshot {cmd.number} from configuration "{cmd.config}"')
         try:
             config = Config(cmd.config)
             if not config.loaded:
@@ -93,10 +109,12 @@ class ClientConnection:
             check_path_or_raise(snapdir, 'snapshot not found: "{}"')
 
             snapshot_fullpath = os.path.join(snapdir, 'snapshot')
-            self.reply(ERR_OK, f'deleting snapshot "{snapshot_fullpath}"')
-            os.system(f'btrfs subvolume delete "{snapshot_fullpath}"')
-            self.reply(ERR_OK, f'deleting directory "{snapdir}"')
+            self.execute('/bin/btrfs', 'subvolume', 'delete', snapshot_fullpath)
+            self.reply(ERR_OK, f'Delete directory "{snapdir}"')
             os.system(f'rm -rf {snapdir}')
+
+        except ExternalToolsError as e:
+            self.reply(ERR_UNKNOWN_EXCEPTION, str(e))
 
         except ConfigurationError as e:
             self.reply(ERR_CONFIGURATION, str(e))
@@ -122,7 +140,7 @@ class ClientConnection:
         mapping[cmd.cmd](cmd)  # noqa
 
     def reply(self, exit_code, message):
-        r = json.dumps({'exit_code': exit_code, 'message': message.strip()})
+        r = json.dumps({'exit_code': exit_code, 'message': message.strip("\n")})
         try:
             self.conn.sendall(r.encode() + NULL_BYTE)
         except BrokenPipeError:
