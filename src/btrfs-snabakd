@@ -10,9 +10,9 @@ import grp
 import traceback
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
-from snabak_modules.errors import *
+from snabak_modules.exceptions import *
 from snabak_modules.constants import *
-from snabak_modules.commands import *
+from snabak_modules.commands import Command
 from snabak_modules.config import Config
 
 

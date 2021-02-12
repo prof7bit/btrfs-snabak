@@ -3,11 +3,12 @@
 import socket
 import argparse
 import sys
+import json
 
 sys.path.insert(0, '/usr/share/btrfs-snabak')
 from snabak_modules.constants import *
-from snabak_modules.commands import *
-from snabak_modules import config
+from snabak_modules.commands import Command
+from snabak_modules.config import Config, list_configs, list_snapshots
 
 
 def terminate(code, message):
@@ -15,7 +16,11 @@ def terminate(code, message):
     sys.exit(code)
 
 
-def call_daemon(command):
+def call_daemon(command: Command):
+    """
+    This function will never return, it will call the daemon, wait for
+    its answer, print it to stdout and then terminate the program.
+    """
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(UNIX_SOCKET)
@@ -52,7 +57,7 @@ def cmd_snapshot(args):
         call_daemon(Command("sn", args.config))
 
     else:
-        confs = '\n'.join(['  ' + c for c in config.list_configs()])
+        confs = '\n'.join(['  ' + c for c in list_configs()])
         terminate(
             ERR_USAGE,
             'Please specify at least one configuration name.\n' +
@@ -71,7 +76,6 @@ def cmd_list(_args):
 
 def cmd_delete(args):
     call_daemon(Command("de", args.config, args.number))
-    terminate(ERR_NOT_IMPLEMENTED, 'delete not yet implemented')
 
 
 def completion_assist(args):
@@ -86,16 +90,16 @@ def completion_assist(args):
     if args.prev == 'btrfs-snabak':
         print(' '.join(commands))
 
-    elif args.prev2 in ['delete', 'de'] and args.prev in config.list_configs():
+    elif args.prev2 in ['delete', 'de'] and args.prev in list_configs():
         try:
-            conf = config.Config(args.prev)
-            dirs = config.list_snapshots(conf)
+            conf = Config(args.prev)
+            dirs = list_snapshots(conf)
             print(' '.join(dirs))
         except Exception:  # noqa
             print('invalid')
 
-    elif args.prev in commands + commands2 + config.list_configs():
-        print(' '.join(config.list_configs()))
+    elif args.prev in commands + commands2 + list_configs():
+        print(' '.join(list_configs()))
 
 
 if __name__ == '__main__':
