@@ -41,11 +41,10 @@ class ClientConnection:
         self.username = pwd.getpwuid(self.uid).pw_name
 
     def cmd_snapshot(self, cmd: Command):
-        r = ''
         try:
             for config_name in cmd.config:
                 config = Config(config_name)
-                r += f'create a new snapshot for configuration "{config.name}"\n'
+                self.reply(ERR_OK, f'create a new snapshot for configuration "{config.name}"')
                 if not config.loaded:
                     raise ConfigurationError(f'configuration "{config.name}" can not be found or loaded')
 
@@ -58,30 +57,28 @@ class ClientConnection:
 
                 snapdir_base = os.path.join(config.main.snapshots, config.name)
                 if not os.path.exists(snapdir_base):
-                    r += f'creating new empty snapshot directory: "{snapdir_base}"\n'
+                    self.reply(ERR_OK, f'creating new empty snapshot directory: "{snapdir_base}"')
                     os.mkdir(snapdir_base)
 
                 _, next_number = self.list_existing_snapshots(snapdir_base)
-                r += f'snapshotting "{config_name}", snapshot number {next_number}\n'
+                self.reply(ERR_OK, f'snapshotting "{config_name}", snapshot number {next_number}')
                 snapdir = os.path.join(snapdir_base, str(next_number))
                 snapshot_fullpath = os.path.join(snapdir, 'snapshot')
                 os.mkdir(snapdir)
                 os.system(f'btrfs subvolume snapshot -r "{volume}" "{snapshot_fullpath}"')
-                r += 'ok\n'
-
-            self.reply(ERR_OK, r)
+                self.reply(ERR_OK, f'snapshot created: "{snapshot_fullpath}"')
 
         except ConfigurationError as e:
-            self.reply(ERR_CONFIGURATION, r + str(e))
+            self.reply(ERR_CONFIGURATION, str(e))
 
         except PathNotFound as e:
-            self.reply(ERR_CONFIGURATION, r + str(e))
+            self.reply(ERR_CONFIGURATION, str(e))
 
         except PermissionError as e:
-            self.reply(ERR_PERMISSION, r + str(e))
+            self.reply(ERR_PERMISSION, str(e))
 
     def cmd_delete(self, cmd: Command):
-        r = f'delete snapshot {cmd.number} from configuration "{cmd.config}"\n'
+        self.reply(ERR_OK, f'delete snapshot {cmd.number} from configuration "{cmd.config}"')
         try:
             config = Config(cmd.config)
             if not config.loaded:
@@ -96,27 +93,23 @@ class ClientConnection:
             check_path_or_raise(snapdir, 'snapshot not found: "{}"')
 
             snapshot_fullpath = os.path.join(snapdir, 'snapshot')
-            r += f'deleting snapshot "{snapshot_fullpath}"\n'
+            self.reply(ERR_OK, f'deleting snapshot "{snapshot_fullpath}"')
             os.system(f'btrfs subvolume delete "{snapshot_fullpath}"')
-            r += f'deleting directory "{snapdir}"\n'
+            self.reply(ERR_OK, f'deleting directory "{snapdir}"')
             os.system(f'rm -rf {snapdir}')
 
-            self.reply(ERR_OK, r)
-
         except ConfigurationError as e:
-            self.reply(ERR_CONFIGURATION, r + str(e))
+            self.reply(ERR_CONFIGURATION, str(e))
 
         except PathNotFound as e:
-            self.reply(ERR_USAGE, r + str(e))
+            self.reply(ERR_USAGE, str(e))
 
         except PermissionError as e:
-            self.reply(ERR_PERMISSION, r + str(e))
+            self.reply(ERR_PERMISSION, str(e))
 
     def cmd_backup(self, cmd: Command):
-        r = ''
         for config in cmd.config:
-            r += f'backupping {config} FIXME: implement this!\n'
-        self.reply(ERR_OK, r)
+            self.reply(ERR_OK, f'backupping {config} FIXME: implement this!')
 
     def parse_command(self, command_json):
         log(LOG_7_DEBUG, f'received: {command_json} from user "{self.username}"')
@@ -130,7 +123,10 @@ class ClientConnection:
 
     def reply(self, exit_code, message):
         r = json.dumps({'exit_code': exit_code, 'message': message.strip()})
-        self.conn.sendall(r.encode())
+        try:
+            self.conn.sendall(r.encode() + NULL_BYTE)
+        except BrokenPipeError:
+            log(LOG_3_ERROR, 'broken pipe while trying to reply')
 
     def list_existing_snapshots(self, path):  # noqa
         _, dirnames, _ = next(os.walk(path))

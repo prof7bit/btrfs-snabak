@@ -27,20 +27,30 @@ def call_daemon(command: Command):
         sock.sendall(command.serialize() + NULL_BYTE)
 
         # wait for the answer
-        reply = ''
-        while True:
-            buf = sock.recv(4096).decode()
-            reply += buf
-            if buf == "":
-                sock.close()
-                break
-
+        reply_json = ''
+        have_reply = False
         try:
-            rep = json.loads(reply)
-            terminate(rep["exit_code"], rep["message"])
+            while True:
+                rxchar = sock.recv(1).decode()
+
+                if rxchar == "\x00":  # separator between two reply objects
+                    reply = json.loads(reply_json)
+                    print(reply["message"])
+                    reply_json = ""
+                    have_reply = True
+
+                elif rxchar == "":  # socket was closed on the other end
+                    sock.close()
+                    if have_reply:
+                        sys.exit(reply["exit_code"])  # noqa
+                    else:
+                        terminate(ERR_DAEMON, 'the daemon closed the socket unexpectedly')
+
+                else:
+                    reply_json += rxchar
 
         except (json.JSONDecodeError, KeyError):
-            terminate(ERR_DAEMON, f"could not parse daemon reply: '{reply}'")
+            terminate(ERR_DAEMON, f"could not parse daemon reply: '{reply_json}'")
 
     except FileNotFoundError:
         terminate(ERR_DAEMON, f"could not find '{UNIX_SOCKET}', is the daemon not running?")
